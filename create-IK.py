@@ -11,6 +11,7 @@ for side in ['R', 'L']:
     arm = eb['Arm' + side]
     hand = eb['Hand' + side]
     
+    legC = eb['LegC']
     leg = eb['Leg' + side]
     knee = eb['Knee' + side]
     foot = eb['Foot' + side]
@@ -23,6 +24,7 @@ for side in ['R', 'L']:
         exoShoulder.head = shoulder.head
         exoShoulder.tail = arm.head
         exoShoulder.use_deform = False
+        exoShoulder.parent = clavicle
     
     exoArm = eb.get('ExoArm' + side)
     if not exoArm:
@@ -57,6 +59,7 @@ for side in ['R', 'L']:
         exoLeg.head = leg.head
         exoLeg.tail = knee.head
         exoLeg.use_deform = False
+        exoLeg.parent = legC
         
     exoKnee = eb.get('ExoKnee' + side)
     if not exoKnee:

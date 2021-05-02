@@ -5,7 +5,8 @@ Blender Rig setup script for imported smash ultimate skeletons. Useful because s
 Don't install this script. Just run it from the 'Scripting' tab in blender. Make sure the smash skeleton is selected!
 
 # Features:
-Arm + Leg IK controllers, animations created with these IK handles are able to be exported back into smash!
+Arm + Leg IK controllers
+Head Tracker
 
 # Planned Features:
 For the list of currently planned features, check out the 'issues' page. Please feel free to leave feature requests, especially if its a feature that makes your life animating alot easier!

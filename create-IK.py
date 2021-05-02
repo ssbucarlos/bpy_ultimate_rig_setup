@@ -2,7 +2,7 @@ import bpy, math
 from mathutils import Matrix
 
 #bone creation
-bpy.ops.object.mode_set(mode='EDIT')
+bpy.ops.object.mode_set(mode='EDIT') 
 for side in ['R', 'L']:
     eb = bpy.context.object.data.edit_bones
     #These must exist if its an Ultimate skeleton
@@ -16,8 +16,17 @@ for side in ['R', 'L']:
     knee = eb['Knee' + side]
     foot = eb['Foot' + side]
     
-    
     # Bones that could exist if script previously ran
+    shoulderFK = eb.get('Shoulder%s_FK' % side)
+    if not shoulderFK:
+        shoulderFK = eb.new('Shoulder%s_FK' % side)
+        shoulderFK.head = shoulder.head
+        shoulderFK.tail = shoulder.head
+        shoulderFK.tail[1] = shoulderFK.tail[1] + 1
+        shoulderFK.use_deform = False
+        shoulderFK.parent = clavicle
+    
+    
     exoShoulder = eb.get('ExoShoulder' + side)
     if not exoShoulder:
         exoShoulder = eb.new('ExoShoulder' + side)
@@ -43,6 +52,7 @@ for side in ['R', 'L']:
         handIK.use_deform = False
         if side == 'L':
             handIK.roll = math.radians(180)
+        handIK.parent = shoulderFK
         
     elbowIK = eb.get('Elbow%s_IK' % side)
     if not elbowIK:
@@ -94,8 +104,7 @@ for side in ['R', 'L']:
         mat = Matrix([c[0].head, c[1].head, c[2].head])
         if 0 == mat.determinant():
             fix = -.01 if c is armChain else .01
-            c[1].head[2] = c[1].head[2] + fix
-            
+            c[1].head[2] = c[1].head[2] + fix           
     
 #custom bone shapes
 armature = bpy.context.object #Needed cus the ops below will change active object
@@ -187,4 +196,3 @@ for side in ['R', 'L']:
         ikc.chain_count = 2
     
     
-

@@ -128,9 +128,22 @@ ring.select_set(False)
 armature.select_set(True)
 bpy.context.view_layer.objects.active = armature
 
+
+#create custom bone groups
+bpy.ops.object.mode_set(mode='POSE')
+right = 'Right'
+left = 'Left'
+for side in [right, left]:
+    g = bpy.context.object.pose.bone_groups.new()
+    g.name = side
+    g.color_set = 'THEME01' if side is right else 'THEME03'
+        
+
 #constraint creation
 bpy.ops.object.mode_set(mode='POSE')
-for side in ['R', 'L']:
+r = 'R'
+l = 'L'
+for side in [r, l]:
     pb = bpy.context.object.pose.bones
     
     clavicle = pb['Clavicle' + side]
@@ -160,7 +173,14 @@ for side in ['R', 'L']:
     kneeIK.custom_shape = ring
     kneeIK.custom_shape_scale = .25
     
+    #apply bone groups (for colors)
+    boneGroups = bpy.context.object.pose.bone_groups
+    rg = boneGroups.get('Right')
+    lg = boneGroups.get('Left')
+    for bone in [handIK, elbowIK, footIK, kneeIK]:
+        bone.bone_group = rg if side is r else lg
     
+    #apply constraints
     for bone in [shoulder, arm]:
         dtc = bone.constraints.new('DAMPED_TRACK')
         dtc.target = bpy.context.object

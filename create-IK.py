@@ -1,4 +1,5 @@
 import bpy, math
+from mathutils import Matrix
 
 #bone creation
 bpy.ops.object.mode_set(mode='EDIT')
@@ -83,6 +84,15 @@ for side in ['R', 'L']:
         kneeIK.tail[2] = kneeIK.tail[2] + 7
         kneeIK.use_deform = False
     
+    #detect and fix co-linear exo bones
+    armChain = [exoShoulder, exoArm, handIK]
+    footChain = [exoLeg, exoKnee, footIK]
+    for c in [armChain, footChain]:
+        mat = Matrix([c[0].head, c[1].head, c[2].head])
+        if 0 == mat.determinant():
+            fix = -.01 if c is armChain else .01
+            c[1].head[2] = c[1].head[2] + fix
+            
     
 #custom bone shapes
 armature = bpy.context.object #Needed cus the ops below will change active object

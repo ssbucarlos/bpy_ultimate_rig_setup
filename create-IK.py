@@ -1,11 +1,24 @@
 import bpy, math
 from mathutils import Matrix
 
-#bone creation
+# Bone creation
 bpy.ops.object.mode_set(mode='EDIT') 
+eb = bpy.context.object.data.edit_bones
+
+# Head
+head = eb['Head']
+headT = eb.get('HeadTracker')
+if not headT:
+    headT = eb.new('HeadTracker')
+    headT.head = head.head
+    headT.tail = head.head
+    headT.head[2] = headT.head[2] + 10
+    headT.tail[2] = headT.tail[2] + 7
+    headT.use_deform = False
+
+# Arm and Legs
 for side in ['R', 'L']:
-    eb = bpy.context.object.data.edit_bones
-    #These must exist if its an Ultimate skeleton
+    # These must exist if its an Ultimate skeleton
     clavicle = eb['Clavicle' + side]
     shoulder = eb['Shoulder' + side]
     arm = eb['Arm' + side]
@@ -133,19 +146,41 @@ bpy.context.view_layer.objects.active = armature
 bpy.ops.object.mode_set(mode='POSE')
 right = 'Right'
 left = 'Left'
-for side in [right, left]:
+neutral = 'Neutral'
+
+for side in [right, left, neutral]:
     g = bpy.context.object.pose.bone_groups.new()
     g.name = side
-    g.color_set = 'THEME01' if side is right else 'THEME03'
-        
+    if side in [right, left]:
+        g.color_set = 'THEME01' if side is right else 'THEME03'
+    else:
+        g.color_set = 'THEME10'
+
 
 #constraint creation
 bpy.ops.object.mode_set(mode='POSE')
 r = 'R'
 l = 'L'
+
+pb = bpy.context.object.pose.bones
+boneGroups = bpy.context.object.pose.bone_groups
+head = pb['Head']
+headT = pb['HeadTracker']
+headT.custom_shape = ring
+headT.custom_shape_scale = .25
+headT.bone_group = boneGroups.get('Neutral')
+
+ttc = head.constraints.new('TRACK_TO')
+ttc.target = bpy.context.object
+ttc.subtarget = headT.name
+ttc.track_axis = 'TRACK_Y'
+ttc.up_axis = 'UP_X'
+ttc.use_target_z = True
+ttc.target_space = 'POSE'
+ttc.owner_space = 'POSE'
+
 for side in [r, l]:
-    pb = bpy.context.object.pose.bones
-    
+        
     clavicle = pb['Clavicle' + side]
     shoulder = pb['Shoulder' + side]
     arm = pb['Arm' + side]
@@ -174,12 +209,11 @@ for side in [r, l]:
     kneeIK.custom_shape_scale = .25
     
     #apply bone groups (for colors)
-    boneGroups = bpy.context.object.pose.bone_groups
     rg = boneGroups.get('Right')
     lg = boneGroups.get('Left')
     for bone in [handIK, elbowIK, footIK, kneeIK]:
         bone.bone_group = rg if side is r else lg
-    
+
     #apply constraints
     for bone in [shoulder, arm]:
         dtc = bone.constraints.new('DAMPED_TRACK')

@@ -15,7 +15,7 @@ if not headT:
     headT.head[2] = headT.head[2] + 10
     headT.tail[2] = headT.tail[2] + 7
     headT.use_deform = False
-
+    
 # Arm and Legs
 for side in ['R', 'L']:
     # These must exist if its an Ultimate skeleton
@@ -30,6 +30,7 @@ for side in ['R', 'L']:
     foot = eb['Foot' + side]
     
     # Bones that could exist if script previously ran
+    '''
     shoulderFK = eb.get('Shoulder%s_FK' % side)
     if not shoulderFK:
         shoulderFK = eb.new('Shoulder%s_FK' % side)
@@ -38,7 +39,7 @@ for side in ['R', 'L']:
         shoulderFK.tail[1] = shoulderFK.tail[1] + 1
         shoulderFK.use_deform = False
         shoulderFK.parent = clavicle
-    
+    '''
     
     exoShoulder = eb.get('ExoShoulder' + side)
     if not exoShoulder:
@@ -46,8 +47,10 @@ for side in ['R', 'L']:
         exoShoulder.head = shoulder.head
         exoShoulder.tail = arm.head
         exoShoulder.use_deform = False
-        exoShoulder.parent = clavicle
-    
+        # exoShoulder.parent = clavicle # Handled by contraints as of the FK/IK switch update
+        exoShoulder.layers[0] = False
+        exoShoulder.layers[1] = True
+        
     exoArm = eb.get('ExoArm' + side)
     if not exoArm:
         exoArm = eb.new('ExoArm' + side)
@@ -56,6 +59,8 @@ for side in ['R', 'L']:
         exoArm.parent = exoShoulder
         exoArm.use_deform = False
         exoArm.use_connect = True
+        exoArm.layers[0] = False
+        exoArm.layers[1] = True
     
     handIK = eb.get('Hand%s_IK' % side)
     if not handIK:
@@ -65,7 +70,7 @@ for side in ['R', 'L']:
         handIK.use_deform = False
         if side == 'L':
             handIK.roll = math.radians(180)
-        handIK.parent = shoulderFK
+        #handIK.parent = shoulderFK
         
     elbowIK = eb.get('Elbow%s_IK' % side)
     if not elbowIK:
@@ -82,7 +87,9 @@ for side in ['R', 'L']:
         exoLeg.head = leg.head
         exoLeg.tail = knee.head
         exoLeg.use_deform = False
-        exoLeg.parent = legC
+        #exoLeg.parent = legC
+        exoLeg.layers[0] = False
+        exoLeg.layers[1] = True
         
     exoKnee = eb.get('ExoKnee' + side)
     if not exoKnee:
@@ -92,6 +99,8 @@ for side in ['R', 'L']:
         exoKnee.parent = exoLeg
         exoKnee.use_deform = False
         exoKnee.use_connect = True
+        exoKnee.layers[0] = False
+        exoKnee.layers[1] = True
     
     footIK = eb.get('Foot%s_IK' % side)
     if not footIK:
@@ -115,7 +124,7 @@ for side in ['R', 'L']:
     footChain = [exoLeg, exoKnee, footIK]
     for c in [armChain, footChain]:
         mat = Matrix([c[0].head, c[1].head, c[2].head])
-        if 0 == mat.determinant():
+        if math.isclose(mat.determinant(), 0, abs_tol=0.0001):
             fix = -.01 if c is armChain else .01
             c[1].head[2] = c[1].head[2] + fix           
     
@@ -169,15 +178,38 @@ headT = pb['HeadTracker']
 headT.custom_shape = ring
 headT.custom_shape_scale = .25
 headT.bone_group = boneGroups.get('Neutral')
+headT['Disable/Enable'] = 0
 
-ttc = head.constraints.new('TRACK_TO')
-ttc.target = bpy.context.object
-ttc.subtarget = headT.name
-ttc.track_axis = 'TRACK_Y'
-ttc.up_axis = 'UP_X'
-ttc.use_target_z = True
-ttc.target_space = 'POSE'
-ttc.owner_space = 'POSE'
+for bone in [head]:
+    ttc = head.constraints.new('TRACK_TO')
+    ttc.target = bpy.context.object
+    ttc.subtarget = headT.name
+    ttc.track_axis = 'TRACK_Y'
+    ttc.up_axis = 'UP_X'
+    ttc.use_target_z = True
+    ttc.target_space = 'POSE'
+    ttc.owner_space = 'POSE'
+    d = ttc.driver_add('influence')
+    var = d.driver.variables.new()
+    var.name = 'var'
+    target = var.targets[0]
+    target.id_type = 'OBJECT'
+    target.id = armature
+    target.data_path = 'pose.bones["%s"]["Disable/Enable"]' % headT.name
+    d.driver.expression = "%s" % var.name
+    
+for bone in [headT]:
+    coc = bone.constraints.new('CHILD_OF')
+    coc.target = bpy.context.object
+    coc.subtarget = head.name
+    d = coc.driver_add('influence')
+    var = d.driver.variables.new()
+    var.name = 'var'
+    target = var.targets[0]
+    target.id_type = 'OBJECT'
+    target.id = armature
+    target.data_path = 'pose.bones["%s"]["Disable/Enable"]' % headT.name
+    d.driver.expression = '1 - %s' % var.name
 
 for side in [r, l]:
         
@@ -191,6 +223,7 @@ for side in [r, l]:
     elbowIK = pb['Elbow%s_IK' % side]
     
     leg = pb['Leg' + side]
+    legC = pb['LegC']
     knee = pb['Knee' + side]
     foot = pb['Foot' + side]
     exoLeg = pb['ExoLeg' + side]
@@ -213,8 +246,13 @@ for side in [r, l]:
     lg = boneGroups.get('Left')
     for bone in [handIK, elbowIK, footIK, kneeIK]:
         bone.bone_group = rg if side is r else lg
-
+    
+    # Create FK/IK Switch on main IK Bones
+    for bone in [handIK, footIK]:
+        bone["FK/IK Switch"] = 0
+    
     #apply constraints
+    armature = bpy.context.object
     for bone in [shoulder, arm]:
         dtc = bone.constraints.new('DAMPED_TRACK')
         dtc.target = bpy.context.object
@@ -222,6 +260,16 @@ for side in [r, l]:
         dtc.head_tail = 1 if bone is shoulder else 0
         dtc.track_axis = 'TRACK_X'
         dtc.influence = 1
+        # Add FK/IK switch driver
+        for c in [dtc]:
+            d = c.driver_add('influence')
+            var = d.driver.variables.new()
+            var.name = 'var'
+            target = var.targets[0]
+            target.id_type = 'OBJECT'
+            target.id = armature
+            target.data_path = 'pose.bones["%s"]["FK/IK Switch"]' % handIK.name
+            d.driver.expression = "%s" % var.name
     
     for bone in [leg, knee]:
         dtc = bone.constraints.new('DAMPED_TRACK')
@@ -230,6 +278,15 @@ for side in [r, l]:
         dtc.head_tail = 1 if bone is leg else 0
         dtc.track_axis = 'TRACK_X'
         dtc.influence = 1
+        for c in [dtc]:
+            d = c.driver_add('influence')
+            var = d.driver.variables.new()
+            var.name = 'var'
+            target = var.targets[0]
+            target.id_type = 'OBJECT'
+            target.id = armature
+            target.data_path = 'pose.bones["%s"]["FK/IK Switch"]' % footIK.name
+            d.driver.expression = "%s" % var.name
         
     for bone in [hand, foot]:
         crc = bone.constraints.new('COPY_ROTATION')
@@ -239,6 +296,15 @@ for side in [r, l]:
             c.subtarget = handIK.name if bone is hand else footIK.name
             c.target_space = 'POSE'
             c.owner_space = 'POSE'
+            # Add FK/IK switch drivers
+            d = c.driver_add('influence')
+            var = d.driver.variables.new()
+            var.name = 'var'
+            target = var.targets[0]
+            target.id_type = 'OBJECT'
+            target.id = armature
+            target.data_path = 'pose.bones["%s"]["FK/IK Switch"]' % handIK.name
+            d.driver.expression = "%s" % var.name
     
     for bone in [exoArm, exoKnee]:
         ikc = bone.constraints.new('IK')
@@ -248,5 +314,83 @@ for side in [r, l]:
         ikc.pole_subtarget = elbowIK.name if bone is exoArm else kneeIK.name
         ikc.pole_angle = math.radians(-90)
         ikc.chain_count = 2
+        # ttc ensures exo bone behaves appropriately in FK mode
+        ttc = bone.constraints.new('TRACK_TO')
+        ttc.target = armature
+        ttc.subtarget = hand.name if bone is exoArm else foot.name
+        ttc.track_axis = 'TRACK_Y'
+        ttc.up_axis = 'UP_Z'
+        ttc.use_target_z = True
+        # Add FK/IK switch drivers
+        for c in [ikc, ttc]:
+            d = c.driver_add('influence')
+            var = d.driver.variables.new()
+            var.name = 'var'
+            target = var.targets[0]
+            target.id_type = 'OBJECT'
+            target.id = armature
+            target.data_path = 'pose.bones["%s"]["FK/IK Switch"]' % handIK.name if bone is exoArm else\
+                                'pose.bones["%s"]["FK/IK Switch"]' % footIK.name
+            d.driver.expression = "%s" % var.name if c is ikc else\
+                                  "1 - %s" % var.name
+            
+    # New Constraints for FK/IK switching
+    for bone in [handIK, footIK]:
+        ctc = bone.constraints.new('COPY_TRANSFORMS')
+        ctc.target = armature
+        ctc.subtarget = hand.name if bone is handIK else foot.name
+        ctc.target_space = 'POSE'
+        ctc.owner_space = 'POSE'
+        d = ctc.driver_add('influence')
+        var = d.driver.variables.new()
+        var.name = 'var'
+        target = var.targets[0]
+        target.id_type = 'OBJECT'
+        target.id = armature
+        target.data_path = 'pose.bones["%s"]["FK/IK Switch"]' % handIK.name if bone is handIK else\
+                            'pose.bones["%s"]["FK/IK Switch"]' % footIK.name 
+        d.driver.expression = "1 - %s" % var.name
     
+    for bone in [exoShoulder]:
+        for targetBone in [clavicle, shoulder]:
+            coc = bone.constraints.new('CHILD_OF')
+            coc.target = armature
+            coc.subtarget = targetBone.name
+            d = coc.driver_add('influence')
+            var = d.driver.variables.new()
+            var.name = 'var'
+            target = var.targets[0]
+            target.id_type = 'OBJECT'
+            target.id = armature
+            target.data_path = 'pose.bones["%s"]["FK/IK Switch"]' % handIK.name
+            d.driver.expression = '%s' % var.name if targetBone is clavicle else\
+                                    '1 - %s' % var.name
+
+    for bone in [exoLeg]:
+        for targetBone in [legC, leg]:
+            coc = bone.constraints.new('CHILD_OF')
+            coc.target = armature
+            coc.subtarget = targetBone.name
+            d = coc.driver_add('influence')
+            var = d.driver.variables.new()
+            var.name = 'var'
+            target = var.targets[0]
+            target.id_type = 'OBJECT'
+            target.id = armature
+            target.data_path = 'pose.bones["%s"]["FK/IK Switch"]' % footIK.name
+            d.driver.expression = '%s' % var.name if targetBone is legC else\
+                                    '1 - %s' % var.name    
     
+    for bone in [elbowIK, kneeIK]:
+        coc = bone.constraints.new('CHILD_OF')
+        coc.target = armature
+        coc.subtarget = shoulder.name if bone is elbowIK else leg.name
+        d = coc.driver_add('influence')
+        var = d.driver.variables.new()
+        var.name = 'var'
+        target = var.targets[0]
+        target.id_type = 'OBJECT'
+        target.id = armature
+        target.data_path = 'pose.bones["%s"]["FK/IK Switch"]' % handIK.name if bone is elbowIK else\
+                            'pose.bones["%s"]["FK/IK Switch"]' % footIK.name
+        d.driver.expression = '1 - %s' % var.name
